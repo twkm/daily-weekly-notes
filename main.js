@@ -3,14 +3,17 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const obsidian_1 = require("obsidian");
 // Define default settings
 const DEFAULT_SETTINGS = {
-    calendarFolderPath: 'Calendar', // Default folder for weekly notes
-    weeklyTemplatePath: 'Templates/Weekly Template.md', // Default path to the template
-    addWeekTag: false, // Default: don't add week tag
-    weekTagPrefix: 'week-', // Default prefix for the tag
-    addWeekProperty: false, // Default: don't add week property
-    weekPropertyName: 'week', // Default property name
-    fileNameFormat: 'WO{{woy}}.md', // NEW: Default filename format
-    weekStartDateFormat: 'YYYY-MM-DD', // NEW: Default format for week start date
+    calendarFolderPath: 'Calendar',
+    weeklyTemplatePath: 'Templates/Weekly Template.md',
+    dailyTemplatePath: 'Templates/Daily Template.md',
+    dailyFileNameFormat: 'YYYY-MM-DD.md',
+    dailyDateFormat: 'YYYY-MM-DD',
+    addWeekTag: false,
+    weekTagPrefix: 'week-',
+    addWeekProperty: false,
+    weekPropertyName: 'week',
+    fileNameFormat: 'WO{{woy}}.md',
+    weekStartDateFormat: 'YYYY-MM-DD',
 };
 // ====================================================================================================
 // Abstract Base Suggester for Paths
@@ -83,11 +86,11 @@ class WeeklyNoteSettingTab extends obsidian_1.PluginSettingTab {
     display() {
         const { containerEl } = this;
         containerEl.empty(); // Clear existing contents
-        containerEl.createEl('h2', { text: 'Weekly Note Creator Settings' });
+        containerEl.createEl('h2', { text: 'Daily/Weekly Note Creator Settings' });
         // Setting for Calendar Folder Path
         let calendarFolderSetting = new obsidian_1.Setting(containerEl)
             .setName('Calendar Folder Path')
-            .setDesc('The path to the folder where weekly notes will be stored (e.g., Calendar).');
+            .setDesc('The path to the folder where daily and weekly notes will be stored (e.g., Calendar).');
         let calendarFolderTextInput; // Store reference to the input element
         calendarFolderSetting.addText(text => {
             calendarFolderTextInput = text.inputEl; // Get reference to the actual input element
@@ -146,9 +149,62 @@ class WeeklyNoteSettingTab extends obsidian_1.PluginSettingTab {
                 }
             });
         });
-        // NEW SETTING: Filename Format
+        // NEW SETTING: Daily Template Path
+        let dailyTemplateSetting = new obsidian_1.Setting(containerEl)
+            .setName('Daily Template Path')
+            .setDesc('The path to the template file for new daily notes (e.g., Templates/Daily Template.md).');
+        let dailyTemplateTextInput;
+        dailyTemplateSetting.addText(text => {
+            dailyTemplateTextInput = text.inputEl;
+            text.setPlaceholder('Enter template path')
+                .setValue(this.plugin.settings.dailyTemplatePath)
+                .onChange(async (value) => {
+                this.plugin.settings.dailyTemplatePath = value;
+                await this.plugin.saveSettings();
+            });
+        });
+        dailyTemplateSetting.addButton(button => {
+            button.setButtonText('Browse')
+                .setCta()
+                .onClick(async () => {
+                const fileSuggester = new FileSuggester(this.app);
+                try {
+                    const selectedFile = await fileSuggester.openAndGetValue();
+                    this.plugin.settings.dailyTemplatePath = selectedFile;
+                    dailyTemplateTextInput.value = selectedFile;
+                    await this.plugin.saveSettings();
+                }
+                catch (error) {
+                    console.log('Daily template file selection cancelled.');
+                }
+            });
+        });
+        // NEW SETTING: Daily Filename Format
         new obsidian_1.Setting(containerEl)
-            .setName('Filename Format')
+            .setName('Daily Filename Format')
+            .setDesc('Format string for the daily note filename. Placeholder: {{date}}.')
+            .addText(text => text
+            .setPlaceholder('e.g., {{date}}.md or Daily-{{date}}.md')
+            .setValue(this.plugin.settings.dailyFileNameFormat)
+            .onChange(async (value) => {
+            this.plugin.settings.dailyFileNameFormat = value;
+            await this.plugin.saveSettings();
+        }));
+        // NEW SETTING: Daily Date Format
+        new obsidian_1.Setting(containerEl)
+            .setName('Daily Date Format')
+            .setDesc('Date format string for {{date}} placeholder in daily filename and content. Use YYYY, MM, DD, dddd (full weekday), MMMM (full month).')
+            .addText(text => text
+            .setPlaceholder('e.g., YYYY-MM-DD or YYYY/MM/DD dddd')
+            .setValue(this.plugin.settings.dailyDateFormat)
+            .onChange(async (value) => {
+            this.plugin.settings.dailyDateFormat = value;
+            await this.plugin.saveSettings();
+        }));
+        // Weekly Note Settings below this point (retained existing labels)
+        // NEW SETTING: Filename Format (for weekly notes)
+        new obsidian_1.Setting(containerEl)
+            .setName('Weekly Filename Format') // Renamed for clarity
             .setDesc('Format string for the weekly note filename. Placeholders: {{woy}} or {{week_of_year}} for week number, {{wsd}} or {{week_start_date}} for week start date.')
             .addText(text => text
             .setPlaceholder('e.g., WO{{woy}}.md or Weekly-{{wsd}}.md')
@@ -160,7 +216,7 @@ class WeeklyNoteSettingTab extends obsidian_1.PluginSettingTab {
         // NEW SETTING: Week Start Date Format
         new obsidian_1.Setting(containerEl)
             .setName('Week Start Date Format')
-            .setDesc('Date format string for {{wsd}} or {{week_start_date}} placeholder in filename. Use YYYY, MM, DD.')
+            .setDesc('Date format string for {{wsd}} or {{week_start_date}} placeholder in weekly filename. Use YYYY, MM, DD.')
             .addText(text => text
             .setPlaceholder('e.g., YYYY-MM-DD')
             .setValue(this.plugin.settings.weekStartDateFormat)
@@ -170,8 +226,8 @@ class WeeklyNoteSettingTab extends obsidian_1.PluginSettingTab {
         }));
         // Renamed Setting: Toggle for adding week number tag
         new obsidian_1.Setting(containerEl)
-            .setName('Add Week Number Tag') // Renamed
-            .setDesc('Toggle to automatically add a tag (e.g., #week-3) to the new weekly note.')
+            .setName('Add Week Number Tag to Note') // Renamed for clarity (applies to both daily and weekly)
+            .setDesc('Toggle to automatically add a tag (e.g., #week-3) to the new note. Applies to both daily and weekly notes.')
             .addToggle(toggle => toggle
             .setValue(this.plugin.settings.addWeekTag)
             .onChange(async (value) => {
@@ -194,8 +250,8 @@ class WeeklyNoteSettingTab extends obsidian_1.PluginSettingTab {
         }
         // NEW SETTING: Toggle for adding 'week' property to frontmatter
         new obsidian_1.Setting(containerEl)
-            .setName('Add Week Property to Frontmatter')
-            .setDesc('Toggle to automatically add a property (e.g., "week: <number>") to the YAML frontmatter of the new weekly note.')
+            .setName('Add Week Property to Note Frontmatter') // Renamed for clarity (applies to both daily and weekly)
+            .setDesc('Toggle to automatically add a property (e.g., "week: <number>") to the YAML frontmatter of the new note. Applies to both daily and weekly notes.')
             .addToggle(toggle => toggle
             .setValue(this.plugin.settings.addWeekProperty)
             .onChange(async (value) => {
@@ -238,16 +294,24 @@ class WeeklyNotePlugin extends obsidian_1.Plugin {
                 await this.processWeeklyNote();
             },
         });
+        // Register a custom command that will create or open the daily note
+        this.addCommand({
+            id: 'create-or-open-daily-note',
+            name: 'Create or Open Daily Note for Today',
+            callback: async () => {
+                await this.processDailyNote();
+            },
+        });
         // Add the settings tab to Obsidian's settings pane
         this.addSettingTab(new WeeklyNoteSettingTab(this.app, this));
-        console.log('Weekly Note Plugin loaded.');
+        console.log('Daily/Weekly Note Plugin loaded.');
     }
     /**
      * This method is called when the plugin is unloaded.
      * Any cleanup can be done here.
      */
     onunload() {
-        console.log('Weekly Note Plugin unloaded.');
+        console.log('Daily/Weekly Note Plugin unloaded.');
     }
     /**
      * Loads plugin settings from storage.
@@ -293,38 +357,69 @@ class WeeklyNotePlugin extends obsidian_1.Plugin {
     }
     /**
      * Formats a Date object into a string based on a simple format string.
-     * Supports YYYY, MM, DD.
+     * Supports YYYY, MM, DD, dddd (full weekday name), MMMM (full month name), etc.
      * @param date The Date object to format.
-     * @param format The format string (e.g., "YYYY-MM-DD").
+     * @param format The format string (e.g., "YYYY-MM-DD", "dddd, MMMM DD, YYYY").
      * @returns The formatted date string.
      */
     formatDate(date, format) {
         const year = date.getFullYear();
-        const month = (date.getMonth() + 1).toString().padStart(2, '0'); // Months are 0-indexed
-        const day = date.getDate().toString().padStart(2, '0');
+        const month = (date.getMonth() + 1); // Months are 0-indexed
+        const day = date.getDate();
+        const dayOfWeek = date.getDay(); // 0 for Sunday, 1 for Monday, etc.
+        const monthNames = ["January", "February", "March", "April", "May", "June",
+            "July", "August", "September", "October", "November", "December"];
+        const dayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
         let formattedString = format;
+        // Replace year
         formattedString = formattedString.replace(/YYYY/g, year.toString());
-        formattedString = formattedString.replace(/MM/g, month);
-        formattedString = formattedString.replace(/DD/g, day);
+        formattedString = formattedString.replace(/YY/g, year.toString().slice(-2));
+        // Replace month
+        formattedString = formattedString.replace(/MMMM/g, monthNames[month - 1]); // Full month name
+        formattedString = formattedString.replace(/MMM/g, monthNames[month - 1].substring(0, 3)); // Short month name
+        formattedString = formattedString.replace(/MM/g, month.toString().padStart(2, '0')); // Padded month
+        formattedString = formattedString.replace(/M/g, month.toString()); // Unpadded month
+        // Replace day
+        formattedString = formattedString.replace(/DD/g, day.toString().padStart(2, '0')); // Padded day
+        formattedString = formattedString.replace(/D/g, day.toString()); // Unpadded day
+        // Replace weekday
+        formattedString = formattedString.replace(/dddd/g, dayNames[dayOfWeek]); // Full weekday name
+        formattedString = formattedString.replace(/ddd/g, dayNames[dayOfWeek].substring(0, 3)); // Short weekday name
         return formattedString;
     }
     /**
-     * Core logic to create or open the weekly note.
+     * Core logic to create or open a note.
+     * @param noteType 'daily' or 'weekly'
      */
-    async processWeeklyNote() {
+    async processNote(noteType) {
         const now = new Date();
+        const folderPath = this.settings.calendarFolderPath;
+        let fileName;
+        let templatePath;
+        let templateContent = '';
+        let replacements = {};
+        // Calculate week-related data always, as it might be used for daily notes too (e.g., week property/tag)
         const weekOfYear = this.getWeekOfYear(now);
         const weekStartDate = this.getISOWeekStartDate(now);
         const formattedWeekStartDate = this.formatDate(weekStartDate, this.settings.weekStartDateFormat);
-        // Define replacements for both filename and content
-        const replacements = {
+        // Populate common replacements for both note types
+        replacements = {
             '{{woy}}': weekOfYear.toString(),
             '{{week_of_year}}': weekOfYear.toString(),
             '{{wsd}}': formattedWeekStartDate,
             '{{week_start_date}}': formattedWeekStartDate,
+            // Daily specific placeholder (always available, but only used if dailyDateFormat is set)
+            '{{date}}': this.formatDate(now, this.settings.dailyDateFormat),
         };
-        // Construct the file name based on the user's format string and placeholders
-        let fileName = this.settings.fileNameFormat;
+        if (noteType === 'weekly') {
+            fileName = this.settings.fileNameFormat;
+            templatePath = this.settings.weeklyTemplatePath;
+        }
+        else { // noteType === 'daily'
+            fileName = this.settings.dailyFileNameFormat;
+            templatePath = this.settings.dailyTemplatePath;
+        }
+        // Apply replacements to filename string
         for (const placeholder in replacements) {
             fileName = fileName.replace(new RegExp(placeholder, 'g'), replacements[placeholder]);
         }
@@ -332,8 +427,6 @@ class WeeklyNotePlugin extends obsidian_1.Plugin {
         if (!fileName.endsWith('.md')) {
             fileName += '.md';
         }
-        const folderPath = this.settings.calendarFolderPath; // Get path from settings
-        const templatePath = this.settings.weeklyTemplatePath; // Get path from settings
         const fullPath = `${folderPath}/${fileName}`;
         // 1. Ensure the target folder exists
         let folder = this.app.vault.getAbstractFileByPath(folderPath);
@@ -341,7 +434,7 @@ class WeeklyNotePlugin extends obsidian_1.Plugin {
             console.log(`Folder '${folderPath}' does not exist. Creating it.`);
             await this.app.vault.createFolder(folderPath);
         }
-        // 2. Check if the weekly note file already exists
+        // 2. Check if the note file already exists
         let file = this.app.vault.getAbstractFileByPath(fullPath);
         if (file instanceof obsidian_1.TFile) {
             // File exists, open it
@@ -351,7 +444,6 @@ class WeeklyNotePlugin extends obsidian_1.Plugin {
         else {
             // File does not exist, create it from the template
             console.log(`File '${fullPath}' does not exist. Creating it from template.`);
-            let templateContent = '';
             const templateFile = this.app.vault.getAbstractFileByPath(templatePath);
             if (templateFile instanceof obsidian_1.TFile) {
                 templateContent = await this.app.vault.read(templateFile);
@@ -360,15 +452,20 @@ class WeeklyNotePlugin extends obsidian_1.Plugin {
             else {
                 console.warn(`Template file not found at: ${templatePath}. Creating an empty file.`);
                 // Fallback: if template is not found, create a basic note
-                templateContent = `# Weekly Note WO${weekOfYear}\n\n`;
+                if (noteType === 'weekly') {
+                    templateContent = `# Weekly Note WO${weekOfYear}\n\n`;
+                }
+                else { // Daily note fallback
+                    templateContent = `# Daily Note ${replacements['{{date}']}\n\n`;
+                }
             }
-            // NEW: Replace placeholders in template content
+            // Replace all placeholders in template content
             for (const placeholder in replacements) {
                 templateContent = templateContent.replace(new RegExp(placeholder, 'g'), replacements[placeholder]);
             }
-            // Add the week property to frontmatter if enabled in settings
+            // --- Apply Week Property to frontmatter (applies to both daily and weekly if enabled) ---
             if (this.settings.addWeekProperty) {
-                const weekPropertyLine = `${this.settings.weekPropertyName}: ${weekOfYear}`; // Use customizable property name
+                const weekPropertyLine = `${this.settings.weekPropertyName}: ${weekOfYear}`;
                 const lines = templateContent.split('\n');
                 if (lines.length > 0 && lines[0].trim() === '---') {
                     // Check if there's a closing '---'
@@ -385,20 +482,20 @@ class WeeklyNotePlugin extends obsidian_1.Plugin {
                         templateContent = lines.join('\n');
                     }
                     else {
-                        // No closing '---' found, just append after the opening one
-                        // This case is less common for valid frontmatter, but handles malformed templates
+                        // No closing '---' found, append after the opening one
+                        // This case handles malformed templates or templates without a closing '---'
                         lines.splice(1, 0, weekPropertyLine);
                         templateContent = lines.join('\n');
                     }
                 }
                 else {
-                    // No frontmatter, prepend a new block
+                    // No frontmatter found, prepend a new block
                     templateContent = `---\n${weekPropertyLine}\n---\n\n` + templateContent;
                 }
             }
-            // Add the week tag if enabled in settings (existing logic)
+            // --- Apply Week Tag (applies to both daily and weekly if enabled) ---
             if (this.settings.addWeekTag) {
-                const weekTag = `#${this.settings.weekTagPrefix}${weekOfYear}`; // Use weekOfYear
+                const weekTag = `#${this.settings.weekTagPrefix}${weekOfYear}`;
                 templateContent += `\n\n${weekTag}`;
             }
             // Create the new file
@@ -407,6 +504,18 @@ class WeeklyNotePlugin extends obsidian_1.Plugin {
             // Open the newly created file
             this.app.workspace.openLinkText(newFile.path, newFile.path);
         }
+    }
+    /**
+     * Public method to process weekly notes.
+     */
+    async processWeeklyNote() {
+        await this.processNote('weekly');
+    }
+    /**
+     * Public method to process daily notes.
+     */
+    async processDailyNote() {
+        await this.processNote('daily');
     }
 }
 exports.default = WeeklyNotePlugin;

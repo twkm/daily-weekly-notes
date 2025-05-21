@@ -1,9 +1,9 @@
 {
-    "id": "weekly-notes",
-    "name": "Weekly Notes",
+    "id": "daily-weekly-notes",
+    "name": "Daily/Weekly Notes",
     "version": "1.0.0",
     "minAppVersion": "0.15.0",
-    "description": "A plugin to create or open a weekly note based on the week of the month, using a template.",
+    "description": "A plugin to create or open a daily or weekly note based on the week of the month, using a template.",
     "author": "Troy Meier",
     "authorUrl": "https://github.com/twkm",
     "isDesktopOnly": false
