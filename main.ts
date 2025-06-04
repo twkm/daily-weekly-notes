@@ -36,8 +36,8 @@ const DEFAULT_SETTINGS: WeeklyNotePluginSettings = {
 // ====================================================================================================
 abstract class AbstractPathSuggester<T extends TAbstractFile> extends FuzzySuggestModal<T> {
     // These promises allow us to await the user's selection from the modal.
-    private resolve: (value: string | PromiseLike<string>) => void;
-    private reject: (reason?: any) => void;
+    private resolve!: (value: string | PromiseLike<string>) => void;
+    private reject!: (reason?: any) => void;
 
     constructor(app: App) {
         super(app);
@@ -330,7 +330,7 @@ class WeeklyNoteSettingTab extends PluginSettingTab {
 // Main Plugin Class
 // ====================================================================================================
 export default class WeeklyNotePlugin extends Plugin {
-    settings: WeeklyNotePluginSettings;
+    settings!: WeeklyNotePluginSettings;
 
     /**
      * This method is called when the plugin is loaded.
@@ -355,6 +355,15 @@ export default class WeeklyNotePlugin extends Plugin {
             name: 'Create or Open Daily Note for Today',
             callback: async () => {
                 await this.processDailyNote();
+            },
+        });
+
+        // Register a custom command that will create or open tomorrow's note
+        this.addCommand({
+            id: 'create-or-open-tomorrow-note',
+            name: 'Create or Open Daily Note for Tomorrow',
+            callback: async () => {
+                await this.processTomorrowNote();
             },
         });
 
@@ -426,10 +435,11 @@ export default class WeeklyNotePlugin extends Plugin {
      * @returns The formatted date string.
      */
     formatDate(date: Date, format: string): string {
-        const year = date.getFullYear();
-        const month = (date.getMonth() + 1); // Months are 0-indexed
-        const day = date.getDate();
-        const dayOfWeek = date.getDay(); // 0 for Sunday, 1 for Monday, etc.
+        // Use UTC methods to be consistent with getISOWeekStartDate which uses UTC
+        const year = date.getUTCFullYear();
+        const month = (date.getUTCMonth() + 1); // Months are 0-indexed
+        const day = date.getUTCDate();
+        const dayOfWeek = date.getUTCDay(); // 0 for Sunday, 1 for Monday, etc.
 
         const monthNames = ["January", "February", "March", "April", "May", "June",
             "July", "August", "September", "October", "November", "December"];
@@ -461,9 +471,10 @@ export default class WeeklyNotePlugin extends Plugin {
     /**
      * Core logic to create or open a note.
      * @param noteType 'daily' or 'weekly'
+     * @param targetDate Optional date to use instead of current date
      */
-    private async processNote(noteType: 'daily' | 'weekly') {
-        const now = new Date();
+    private async processNote(noteType: 'daily' | 'weekly', targetDate?: Date) {
+        const now = targetDate || new Date();
         const folderPath = this.settings.calendarFolderPath;
         let fileName: string;
         let templatePath: string;
@@ -600,5 +611,14 @@ export default class WeeklyNotePlugin extends Plugin {
      */
     async processDailyNote() {
         await this.processNote('daily');
+    }
+
+    /**
+     * Public method to process tomorrow's note.
+     */
+    async processTomorrowNote() {
+        const now = new Date();
+        const tomorrow = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+        await this.processNote('daily', tomorrow);
     }
 }
