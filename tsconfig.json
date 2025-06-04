@@ -1,14 +1,18 @@
 {
   "compilerOptions": {
     "module": "CommonJS",
-    "target": "ESNext",
-    "lib": ["DOM", "ESNext"],
+    "target": "ES2018",
+    "lib": ["DOM", "ES2018"],
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "moduleResolution": "node",
-    "declaration": false // No need for declaration files for a simple plugin
+    "declaration": false,
+    "allowSyntheticDefaultImports": true,
+    "resolveJsonModule": true,
+    "outDir": "dist"
   },
-  "include": ["**/*"]
+  "include": ["**/*.ts"],
+  "exclude": ["node_modules", "dist"]
 }

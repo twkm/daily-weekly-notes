@@ -1,0 +1,23 @@
+{
+  "name": "daily-weekly-notes",
+  "version": "1.0.0",
+  "description": "An Obsidian plugin that creates or opens daily and weekly notes based on customizable templates and ISO week calculations.",
+  "main": "main.js",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git@ghp:twkm/daily-weekly-notes.git"
+  },
+  "keywords": ["obsidian", "plugin", "daily-notes", "weekly-notes", "templates"],
+  "author": "Troy Meier",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^22.10.6",
+    "obsidian": "^1.8.7",
+    "typescript": "^5.7.3"
+  }
+}
