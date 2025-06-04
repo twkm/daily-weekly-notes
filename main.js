@@ -20,9 +20,6 @@ const DEFAULT_SETTINGS = {
 // This class provides common functionality for both folder and file suggesters.
 // ====================================================================================================
 class AbstractPathSuggester extends obsidian_1.FuzzySuggestModal {
-    // These promises allow us to await the user's selection from the modal.
-    resolve;
-    reject;
     constructor(app) {
         super(app);
         this.setPlaceholder("Select a path...");
@@ -77,7 +74,6 @@ class FileSuggester extends AbstractPathSuggester {
 // This class extends PluginSettingTab to create the UI for the plugin settings.
 // ====================================================================================================
 class WeeklyNoteSettingTab extends obsidian_1.PluginSettingTab {
-    plugin;
     constructor(app, plugin) {
         super(app, plugin);
         this.plugin = plugin;
@@ -278,7 +274,6 @@ class WeeklyNoteSettingTab extends obsidian_1.PluginSettingTab {
 // Main Plugin Class
 // ====================================================================================================
 class WeeklyNotePlugin extends obsidian_1.Plugin {
-    settings;
     /**
      * This method is called when the plugin is loaded.
      * It initializes settings, registers the custom command, and adds the settings tab.
@@ -300,6 +295,14 @@ class WeeklyNotePlugin extends obsidian_1.Plugin {
             name: 'Create or Open Daily Note for Today',
             callback: async () => {
                 await this.processDailyNote();
+            },
+        });
+        // Register a custom command that will create or open tomorrow's note
+        this.addCommand({
+            id: 'create-or-open-tomorrow-note',
+            name: 'Create or Open Daily Note for Tomorrow',
+            callback: async () => {
+                await this.processTomorrowNote();
             },
         });
         // Add the settings tab to Obsidian's settings pane
@@ -363,10 +366,11 @@ class WeeklyNotePlugin extends obsidian_1.Plugin {
      * @returns The formatted date string.
      */
     formatDate(date, format) {
-        const year = date.getFullYear();
-        const month = (date.getMonth() + 1); // Months are 0-indexed
-        const day = date.getDate();
-        const dayOfWeek = date.getDay(); // 0 for Sunday, 1 for Monday, etc.
+        // Use UTC methods to be consistent with getISOWeekStartDate which uses UTC
+        const year = date.getUTCFullYear();
+        const month = (date.getUTCMonth() + 1); // Months are 0-indexed
+        const day = date.getUTCDate();
+        const dayOfWeek = date.getUTCDay(); // 0 for Sunday, 1 for Monday, etc.
         const monthNames = ["January", "February", "March", "April", "May", "June",
             "July", "August", "September", "October", "November", "December"];
         const dayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
@@ -390,9 +394,10 @@ class WeeklyNotePlugin extends obsidian_1.Plugin {
     /**
      * Core logic to create or open a note.
      * @param noteType 'daily' or 'weekly'
+     * @param targetDate Optional date to use instead of current date
      */
-    async processNote(noteType) {
-        const now = new Date();
+    async processNote(noteType, targetDate) {
+        const now = targetDate || new Date();
         const folderPath = this.settings.calendarFolderPath;
         let fileName;
         let templatePath;
@@ -516,6 +521,14 @@ class WeeklyNotePlugin extends obsidian_1.Plugin {
      */
     async processDailyNote() {
         await this.processNote('daily');
+    }
+    /**
+     * Public method to process tomorrow's note.
+     */
+    async processTomorrowNote() {
+        const now = new Date();
+        const tomorrow = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+        await this.processNote('daily', tomorrow);
     }
 }
 exports.default = WeeklyNotePlugin;
